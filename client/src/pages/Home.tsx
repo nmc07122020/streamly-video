@@ -17,6 +17,8 @@ type FeedVideo = {
   thumbnail: string;
   avatar: string;
   url?: string;
+  publishedAt?: string;
+  durationSeconds?: number;
 };
 
 const primaryNav = [{ label: "Video ngắn", icon: Film }];
@@ -27,6 +29,17 @@ function initials(name: string) {
 
 function Avatar({ value, className = "" }: { value: string; className?: string }) {
   return <span className={`avatar ${className}`}>{value}</span>;
+}
+
+function formatDuration(seconds: number) {
+  if (!seconds) return "HD";
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function ShortsCard({ video, onOpen }: { video: FeedVideo; onOpen: (video: FeedVideo) => void }) {
+  return <article className="shorts-item"><button className="shorts-thumbnail" aria-label={`Phát ${video.title}`} onClick={() => onOpen(video)}><img src={video.thumbnail} alt="" /><span className="shorts-play"><Play size={24} fill="currentColor" /></span></button><div className="shorts-copy"><Avatar value={video.avatar} className="yt-avatar" /><div><h3>{video.title}</h3><p>{video.creator} <span className="verified-check">✓</span></p><span>{video.views} · {video.age}</span></div></div></article>;
 }
 
 function VideoCard({ video, onOpen }: { video: FeedVideo; onOpen: (video: FeedVideo) => void }) {
@@ -43,6 +56,9 @@ export default function Home() {
   const feedQuery = trpc.youtube.feed.useQuery(undefined, { enabled: isAuthenticated && Boolean(connectionQuery.data?.connected), retry: false });
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [lengthFilter, setLengthFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [selectedVideo, setSelectedVideo] = useState<FeedVideo | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -72,10 +88,17 @@ export default function Home() {
 
   const personalVideos = feedQuery.data?.videos ?? [];
   const connected = Boolean(connectionQuery.data?.connected);
-  const feed = useMemo<FeedVideo[]>(() => personalVideos.map((video) => ({ id: video.id, title: video.title, creator: video.creator, views: "Từ các kênh bạn đăng ký", age: video.publishedAt ? new Date(video.publishedAt).toLocaleDateString("vi-VN", { month: "short", day: "numeric" }) : "Mới đây", category: video.category || "All", thumbnail: video.thumbnail, avatar: initials(video.creator), url: video.url })), [personalVideos]);
+  const feed = useMemo<FeedVideo[]>(() => personalVideos.map((video) => ({ id: video.id, title: video.title, creator: video.creator, views: "Từ các kênh bạn đăng ký", age: video.publishedAt ? new Date(video.publishedAt).toLocaleDateString("vi-VN", { month: "short", day: "numeric" }) : "Mới đây", category: video.category || "All", thumbnail: video.thumbnail, avatar: initials(video.creator), url: video.url, publishedAt: video.publishedAt, durationSeconds: video.durationSeconds })), [personalVideos]);
   const hasPersonalFeed = shouldUsePersonalFeed(connected, feed.length);
   const filterFeed = (items: FeedVideo[]) => items.filter((video) => matchesVideoSearch(video, search));
-  const filteredPersonal = filterFeed(feed);
+  const filteredPersonal = filterFeed(feed).filter((video) => {
+    const duration = video.durationSeconds ?? 0;
+    const matchesLength = lengthFilter === "all" || (lengthFilter === "short" && duration < 240) || (lengthFilter === "medium" && duration >= 240 && duration <= 1200) || (lengthFilter === "long" && duration > 1200);
+    const published = video.publishedAt ? new Date(video.publishedAt).getTime() : 0;
+    const age = published ? (Date.now() - published) / 86_400_000 : Number.POSITIVE_INFINITY;
+    const matchesDate = dateFilter === "all" || (dateFilter === "today" && age <= 1) || (dateFilter === "week" && age <= 7) || (dateFilter === "month" && age <= 30);
+    return matchesLength && matchesDate;
+  });
 
   const openVideo = (video: FeedVideo) => {
     if (video.url) window.open(video.url, "_blank", "noopener,noreferrer");
@@ -84,5 +107,5 @@ export default function Home() {
   const navigate = (label: string) => { toast(`${label} đã sẵn sàng để khám phá`); setSidebarOpen(false); };
 
   return <div className="yt-app"><button className={`yt-mobile-scrim ${sidebarOpen ? "visible" : ""}`} aria-label="Đóng menu" onClick={() => setSidebarOpen(false)} /><SideNav onNavigate={navigate} /><div className="yt-main"><header className="yt-header"><button className="yt-icon-btn yt-hamburger" aria-label="Mở menu điều hướng" onClick={() => setSidebarOpen(true)}><Menu size={23} /></button><button className="yt-mobile-wordmark yt-wordmark" onClick={() => navigate("Video ngắn")}><span className="yt-logo"><Play size={13} fill="currentColor" /></span><strong>streamly</strong></button><div className="yt-search"><input aria-label="Tìm kiếm" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && toast(search ? `Đang tìm “${search}”` : "Nhập nội dung cần tìm")} placeholder="Tìm kiếm" />{search && <button aria-label="Xóa tìm kiếm" onClick={() => setSearch("")}><X size={17} /></button>}<button className="yt-search-btn" aria-label="Tìm kiếm" onClick={() => toast(search ? `Đang tìm “${search}”` : "Nhập nội dung cần tìm")}><Search size={21} /></button></div><div className="yt-header-actions"><button className="yt-profile" onClick={() => toast(user ? `Đã đăng nhập với tài khoản ${user.name || user.email || "Streamly"}` : "Đăng nhập để cá nhân hóa Streamly")}><Avatar value={user ? initials(user.name || user.email || "AL") : "AL"} className="yt-profile-avatar" /></button></div></header>
-    <div className="yt-content"><section className={`yt-personal-banner ${connected ? "connected" : ""}`}><div className="yt-personal-icon"><Youtube size={27} /></div><div className="yt-personal-copy"><span>{connected ? "YouTube của bạn" : "Chào mừng đến Streamly"}</span><h1>{connected ? `Mới nhất từ ${connectionQuery.data?.channelTitle || "các kênh bạn đăng ký"}` : "Video của bạn, trong một không gian yên bình."}</h1><p>{connected ? `${feed.length} video từ các kênh bạn theo dõi, được cập nhật từ YouTube.` : "Đăng nhập và kết nối YouTube để đưa các kênh đăng ký cùng feed cá nhân vào đây."}</p></div><button className="yt-connect-btn" onClick={connectYoutube}>{connected ? "Làm mới kết nối" : isAuthenticated ? "Kết nối YouTube" : "Đăng nhập để kết nối"}<ChevronDown size={16} /></button></section>{connected && <><div className="yt-section-heading yt-personal-heading"><h2>Video ngắn</h2><button onClick={() => void feedQuery.refetch()}>Làm mới <span>↻</span></button></div>{feedQuery.isLoading ? <div className="yt-loading"><span /><span /><span /></div> : feedQuery.error ? <div className="yt-empty"><Search size={24} /><h3>Không thể tải video</h3><p>{feedQuery.error.message || "YouTube đã trả về lỗi. Hãy kết nối lại tài khoản."}</p><button onClick={() => void feedQuery.refetch()}>Thử lại</button></div> : hasPersonalFeed && filteredPersonal.length ? <div className="yt-video-grid">{filteredPersonal.map((video) => <VideoCard key={video.id} video={video} onOpen={openVideo} />)}</div> : <div className="yt-empty"><Search size={24} /><h3>{search.trim() ? "Không tìm thấy kết quả" : "Chưa tìm thấy video"}</h3><p>{search.trim() ? `Không có video nào khớp với “${search}”. Hãy thử từ khóa khác.` : "Tài khoản YouTube đã kết nối nhưng chưa có video công khai nào được trả về."}</p><button onClick={() => { setSearch(""); void feedQuery.refetch(); }}>Xóa tìm kiếm</button></div>}</>}<footer className="yt-footer"><span>Giới thiệu</span><span>Điều khoản</span><span>Quyền riêng tư</span><span>Trợ giúp</span><span className="yt-footer-brand">Streamly · Video hay, không ồn ào.</span></footer></div></div></div>;
+    <div className="yt-content"><section className={`yt-personal-banner ${connected ? "connected" : ""}`}><div className="yt-personal-icon"><Youtube size={27} /></div><div className="yt-personal-copy"><span>{connected ? "YouTube của bạn" : "Chào mừng đến Streamly"}</span><h1>{connected ? `Mới nhất từ ${connectionQuery.data?.channelTitle || "các kênh bạn đăng ký"}` : "Video của bạn, trong một không gian yên bình."}</h1><p>{connected ? `${feed.length} video từ các kênh bạn theo dõi, được cập nhật từ YouTube.` : "Đăng nhập và kết nối YouTube để đưa các kênh đăng ký cùng feed cá nhân vào đây."}</p></div><button className="yt-connect-btn" onClick={connectYoutube}>{connected ? "Làm mới kết nối" : isAuthenticated ? "Kết nối YouTube" : "Đăng nhập để kết nối"}<ChevronDown size={16} /></button></section>{connected && <><div className="yt-section-heading yt-personal-heading"><h2>Video ngắn</h2><button onClick={() => void feedQuery.refetch()}>Làm mới <span>↻</span></button></div><div className="shorts-filters"><select aria-label="Lọc theo độ dài" value={lengthFilter} onChange={(event) => setLengthFilter(event.target.value)}><option value="all">Mọi độ dài</option><option value="short">Dưới 4 phút</option><option value="medium">4–20 phút</option><option value="long">Trên 20 phút</option></select><select aria-label="Lọc theo ngày đăng" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">Mọi thời gian</option><option value="today">Hôm nay</option><option value="week">7 ngày qua</option><option value="month">30 ngày qua</option></select></div>{feedQuery.isLoading ? <div className="yt-loading"><span /><span /><span /></div> : feedQuery.error ? <div className="yt-empty"><Search size={24} /><h3>Không thể tải video</h3><p>{feedQuery.error.message || "YouTube đã trả về lỗi. Hãy kết nối lại tài khoản."}</p><button onClick={() => void feedQuery.refetch()}>Thử lại</button></div> : hasPersonalFeed && filteredPersonal.length ? <div className="shorts-feed">{filteredPersonal.map((video) => <ShortsCard key={video.id} video={video} onOpen={setSelectedVideo} />)}</div> : <div className="yt-empty"><Search size={24} /><h3>{search.trim() ? "Không tìm thấy kết quả" : "Chưa tìm thấy video"}</h3><p>{search.trim() ? `Không có video nào khớp với “${search}”. Hãy thử từ khóa khác.` : "Tài khoản YouTube đã kết nối nhưng chưa có video công khai nào được trả về."}</p><button onClick={() => { setSearch(""); setLengthFilter("all"); setDateFilter("all"); void feedQuery.refetch(); }}>Đặt lại bộ lọc</button></div>}</>}<footer className="yt-footer"><span>Giới thiệu</span><span>Điều khoản</span><span>Quyền riêng tư</span><span>Trợ giúp</span><span className="yt-footer-brand">Streamly · Video hay, không ồn ào.</span></footer>{selectedVideo && <div className="video-viewer-backdrop" role="dialog" aria-modal="true" aria-label="Trình xem video" onClick={() => setSelectedVideo(null)}><div className="video-viewer" onClick={(event) => event.stopPropagation()}><button className="video-viewer-close" aria-label="Đóng trình xem" onClick={() => setSelectedVideo(null)}>×</button><iframe src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0`} title={selectedVideo.title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /><div className="video-viewer-copy"><h2>{selectedVideo.title}</h2><p>{selectedVideo.creator}</p></div></div></div>}</div></div></div>;
 }

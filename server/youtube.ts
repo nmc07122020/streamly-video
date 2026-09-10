@@ -55,6 +55,7 @@ type YoutubePlaylistItem = {
 type YoutubeVideoDetails = {
   id?: string;
   snippet?: { categoryId?: string };
+  contentDetails?: { duration?: string };
 };
 
 const youtubeCategoryNames: Record<string, string> = {
@@ -69,6 +70,13 @@ const youtubeCategoryNames: Record<string, string> = {
 
 export function getYoutubeCategoryName(categoryId: string | undefined) {
   return youtubeCategoryNames[categoryId ?? ""] ?? "All";
+}
+
+export function parseYoutubeDuration(duration: string | undefined) {
+  if (!duration) return 0;
+  const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!match) return 0;
+  return Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
 }
 
 function getRedirectUri(req: Request) {
@@ -197,7 +205,8 @@ export async function getPersonalYoutubeFeed(userId: number) {
     ? await youtubeRequest<YoutubeVideoDetails>("videos", accessToken, { part: "snippet", id: playlistVideos.map((video) => video.id).join(",") })
     : { items: [] as YoutubeVideoDetails[] };
   const categoryByVideoId = new Map((details.items ?? []).map((item) => [item.id, getYoutubeCategoryName(item.snippet?.categoryId)]));
-  const videos = playlistVideos.map((video) => ({ ...video, category: categoryByVideoId.get(video.id) ?? "All" }));
+  const durationByVideoId = new Map((details.items ?? []).map((item) => [item.id, parseYoutubeDuration(item.contentDetails?.duration)]));
+  const videos = playlistVideos.map((video) => ({ ...video, category: categoryByVideoId.get(video.id) ?? "All", durationSeconds: durationByVideoId.get(video.id) ?? 0 }));
   return { connected: true as const, videos, subscriptions };
 }
 
