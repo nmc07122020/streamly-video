@@ -135,6 +135,10 @@ export async function getYoutubeConnectionStatus(userId: number) {
   return { connected: true as const, channelTitle: connection.channelTitle, channelId: connection.channelId };
 }
 
+export function getYoutubeChannelIds(channelId: string | null | undefined, subscriptionIds: string[]) {
+  return Array.from(new Set([channelId, ...subscriptionIds].filter((id): id is string => Boolean(id))));
+}
+
 export async function getPersonalYoutubeFeed(userId: number) {
   const connection = await db.getYoutubeConnection(userId);
   if (!connection) return { connected: false as const, videos: [], subscriptions: [] };
@@ -148,7 +152,7 @@ export async function getPersonalYoutubeFeed(userId: number) {
     channelId: item.snippet?.resourceId?.channelId ?? item.resourceId?.channelId ?? "",
     title: item.snippet?.title ?? item.subscriberSnippet?.title ?? "YouTube channel",
   })).filter((item) => item.channelId);
-  const channelIds = subscriptions.map((item) => item.channelId).join(",");
+  const channelIds = getYoutubeChannelIds(connection.channelId, subscriptions.map((item) => item.channelId)).join(",");
   if (!channelIds) return { connected: true as const, videos: [], subscriptions };
   const channelsResponse = await youtubeRequest<YoutubeChannel>("channels", accessToken, {
     part: "snippet,contentDetails",
