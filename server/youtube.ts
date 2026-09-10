@@ -116,7 +116,7 @@ async function getAccessToken(connection: Awaited<ReturnType<typeof db.getYoutub
   if (!connection) throw new Error("YouTube is not connected");
   const now = Date.now();
   if (connection.accessToken && connection.accessTokenExpiresAt && connection.accessTokenExpiresAt > now + 60_000) {
-    return connection.accessToken;
+    return decrypt(connection.accessToken);
   }
   const token = await googleTokenRequest(new URLSearchParams({
     client_id: ENV.youtubeClientId,
