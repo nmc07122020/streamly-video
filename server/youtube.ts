@@ -52,6 +52,25 @@ type YoutubePlaylistItem = {
   };
 };
 
+type YoutubeVideoDetails = {
+  id?: string;
+  snippet?: { categoryId?: string };
+};
+
+const youtubeCategoryNames: Record<string, string> = {
+  "10": "Music",
+  "19": "Travel",
+  "20": "Gaming",
+  "25": "News",
+  "26": "Design",
+  "27": "Education",
+  "28": "Tech",
+};
+
+export function getYoutubeCategoryName(categoryId: string | undefined) {
+  return youtubeCategoryNames[categoryId ?? ""] ?? "All";
+}
+
 function getRedirectUri(req: Request) {
   const protocol = (req.get("x-forwarded-proto") ?? req.protocol).split(",")[0];
   const host = req.get("x-forwarded-host") ?? req.get("host");
@@ -165,7 +184,7 @@ export async function getPersonalYoutubeFeed(userId: number) {
     playlistId,
     maxResults: "4",
   })));
-  const videos = batches.flatMap((batch) => batch.items ?? []).map((item) => ({
+  const playlistVideos = batches.flatMap((batch) => batch.items ?? []).map((item) => ({
     id: item.contentDetails?.videoId ?? "",
     title: item.snippet?.title ?? "Untitled video",
     creator: item.snippet?.channelTitle ?? "YouTube creator",
@@ -174,6 +193,11 @@ export async function getPersonalYoutubeFeed(userId: number) {
     publishedAt: item.contentDetails?.videoPublishedAt ?? item.snippet?.publishedAt ?? "",
     url: `https://www.youtube.com/watch?v=${item.contentDetails?.videoId ?? ""}`,
   })).filter((item) => item.id).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 30);
+  const details = playlistVideos.length
+    ? await youtubeRequest<YoutubeVideoDetails>("videos", accessToken, { part: "snippet", id: playlistVideos.map((video) => video.id).join(",") })
+    : { items: [] as YoutubeVideoDetails[] };
+  const categoryByVideoId = new Map((details.items ?? []).map((item) => [item.id, getYoutubeCategoryName(item.snippet?.categoryId)]));
+  const videos = playlistVideos.map((video) => ({ ...video, category: categoryByVideoId.get(video.id) ?? "All" }));
   return { connected: true as const, videos, subscriptions };
 }
 
