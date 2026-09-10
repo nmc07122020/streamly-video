@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldUsePersonalFeed } from "./feed";
+import { matchesVideoSearch, shouldUsePersonalFeed } from "./feed";
 
 describe("feed mode", () => {
   it("keeps recommendations when YouTube is connected but has no videos", () => {
@@ -12,5 +12,19 @@ describe("feed mode", () => {
 
   it("uses recommendations while disconnected", () => {
     expect(shouldUsePersonalFeed(false, 10)).toBe(false);
+  });
+});
+
+describe("video search", () => {
+  const video = { title: "Nấu mì ramen từ đầu", creator: "Bếp Chậm", category: "Food" };
+
+  it("matches title and creator text case-insensitively", () => {
+    expect(matchesVideoSearch(video, "RAMEN")).toBe(true);
+    expect(matchesVideoSearch(video, "bếp chậm")).toBe(true);
+  });
+
+  it("matches category text and returns false for unrelated terms", () => {
+    expect(matchesVideoSearch(video, "Food")).toBe(true);
+    expect(matchesVideoSearch(video, "du lịch")).toBe(false);
   });
 });
