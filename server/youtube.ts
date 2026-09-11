@@ -58,6 +58,11 @@ type YoutubeVideoDetails = {
   contentDetails?: { duration?: string };
 };
 
+type YoutubeSearchItem = {
+  id?: { videoId?: string };
+  snippet?: { title?: string; channelTitle?: string; publishedAt?: string; thumbnails?: { high?: { url?: string }; medium?: { url?: string } } };
+};
+
 const youtubeCategoryNames: Record<string, string> = {
   "10": "Music",
   "19": "Travel",
@@ -208,6 +213,18 @@ export async function getPersonalYoutubeFeed(userId: number) {
   const durationByVideoId = new Map((details.items ?? []).map((item) => [item.id, parseYoutubeDuration(item.contentDetails?.duration)]));
   const videos = playlistVideos.map((video) => ({ ...video, category: categoryByVideoId.get(video.id) ?? "All", durationSeconds: durationByVideoId.get(video.id) ?? 0 }));
   return { connected: true as const, videos, subscriptions };
+}
+
+export async function searchYoutubeVideos(userId: number, query: string) {
+  const connection = await db.getYoutubeConnection(userId);
+  if (!connection) return { connected: false as const, videos: [] };
+  const accessToken = await getAccessToken(connection);
+  const results = await youtubeRequest<YoutubeSearchItem>("search", accessToken, { part: "snippet", q: query.trim(), type: "video", maxResults: "25", order: "relevance" });
+  const items = (results.items ?? []).filter((item) => item.id?.videoId);
+  const ids = items.map((item) => item.id!.videoId!).join(",");
+  const details = ids ? await youtubeRequest<YoutubeVideoDetails>("videos", accessToken, { part: "contentDetails,snippet", id: ids }) : { items: [] as YoutubeVideoDetails[] };
+  const durationById = new Map((details.items ?? []).map((item) => [item.id, parseYoutubeDuration(item.contentDetails?.duration)]));
+  return { connected: true as const, videos: items.map((item) => ({ id: item.id!.videoId!, title: item.snippet?.title ?? "Video YouTube", creator: item.snippet?.channelTitle ?? "Kênh YouTube", thumbnail: item.snippet?.thumbnails?.high?.url ?? item.snippet?.thumbnails?.medium?.url ?? "", publishedAt: item.snippet?.publishedAt ?? "", durationSeconds: durationById.get(item.id!.videoId!) ?? 0, url: `https://www.youtube.com/watch?v=${item.id!.videoId!}` })) };
 }
 
 export function getYoutubeConnectUrl() {

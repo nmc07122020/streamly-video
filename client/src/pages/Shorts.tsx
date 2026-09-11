@@ -20,8 +20,10 @@ export default function Shorts() {
   const [length, setLength] = useState("all");
   const [date, setDate] = useState("all");
   const [selected, setSelected] = useState<Video | null>(null);
+  const searchQuery = trpc.youtube.search.useQuery({ query: search.trim() }, { enabled: isAuthenticated && Boolean(connection.data?.connected) && search.trim().length >= 2, retry: false });
   const connect = () => { if (authLoading) return; if (!isAuthenticated) return startLogin(); window.location.href = "/api/youtube/oauth/start"; };
-  const videos = useMemo(() => (query.data?.videos ?? []).map((video) => ({ id: video.id, title: video.title, creator: video.creator, thumbnail: video.thumbnail, publishedAt: video.publishedAt, durationSeconds: video.durationSeconds })), [query.data]);
+  const feedVideos = useMemo(() => (query.data?.videos ?? []).map((video) => ({ id: video.id, title: video.title, creator: video.creator, thumbnail: video.thumbnail, publishedAt: video.publishedAt, durationSeconds: video.durationSeconds })), [query.data]);
+  const videos = useMemo(() => search.trim().length >= 2 ? (searchQuery.data?.videos ?? []) : feedVideos, [feedVideos, search, searchQuery.data]);
   const filtered = videos.filter((video) => {
     if (!matchesVideoSearch({ title: video.title, creator: video.creator, category: "" }, search)) return false;
     const seconds = video.durationSeconds ?? 0;
