@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { getPersonalYoutubeFeed, getYoutubeConnectionStatus, getYoutubeConnectUrl, searchYoutubeVideos } from "./youtube";
+import { getPersonalYoutubeFeed, getYoutubeConnectionStatus, getYoutubeConnectUrl, searchPublicYoutubeVideos, searchYoutubeVideos } from "./youtube";
 import { z } from "zod";
 
 export const appRouter = router({
@@ -20,6 +20,7 @@ export const appRouter = router({
     connectUrl: protectedProcedure.query(() => ({ url: getYoutubeConnectUrl() })),
     feed: protectedProcedure.query(({ ctx }) => getPersonalYoutubeFeed(ctx.user.id)),
     search: protectedProcedure.input(z.object({ query: z.string().trim().min(1).max(120) })).query(({ ctx, input }) => searchYoutubeVideos(ctx.user.id, input.query)),
+    publicSearch: publicProcedure.input(z.object({ query: z.string().trim().min(1).max(120) })).query(({ input }) => searchPublicYoutubeVideos(input.query)),
   }),
 });
 
