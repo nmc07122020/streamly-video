@@ -56,6 +56,7 @@ type YoutubeVideoDetails = {
   id?: string;
   snippet?: { categoryId?: string };
   contentDetails?: { duration?: string };
+  statistics?: { viewCount?: string; likeCount?: string };
 };
 
 type YoutubeSearchItem = {
@@ -216,11 +217,13 @@ export async function getPersonalYoutubeFeed(userId: number) {
     url: `https://www.youtube.com/watch?v=${item.contentDetails?.videoId ?? ""}`,
   })).filter((item) => item.id).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 30);
   const details = playlistVideos.length
-    ? await youtubeRequest<YoutubeVideoDetails>("videos", accessToken, { part: "snippet", id: playlistVideos.map((video) => video.id).join(",") })
+    ? await youtubeRequest<YoutubeVideoDetails>("videos", accessToken, { part: "snippet,contentDetails,statistics", id: playlistVideos.map((video) => video.id).join(",") })
     : { items: [] as YoutubeVideoDetails[] };
   const categoryByVideoId = new Map((details.items ?? []).map((item) => [item.id, getYoutubeCategoryName(item.snippet?.categoryId)]));
   const durationByVideoId = new Map((details.items ?? []).map((item) => [item.id, parseYoutubeDuration(item.contentDetails?.duration)]));
-  const videos = playlistVideos.map((video) => ({ ...video, category: categoryByVideoId.get(video.id) ?? "All", durationSeconds: durationByVideoId.get(video.id) ?? 0 }));
+  const viewsByVideoId = new Map((details.items ?? []).map((item) => [item.id, Number(item.statistics?.viewCount ?? 0)]));
+  const likesByVideoId = new Map((details.items ?? []).map((item) => [item.id, Number(item.statistics?.likeCount ?? 0)]));
+  const videos = playlistVideos.map((video) => ({ ...video, category: categoryByVideoId.get(video.id) ?? "All", durationSeconds: durationByVideoId.get(video.id) ?? 0, viewCount: viewsByVideoId.get(video.id) ?? 0, likeCount: likesByVideoId.get(video.id) ?? 0 }));
   return { connected: true as const, videos, subscriptions };
 }
 
@@ -233,7 +236,9 @@ export async function searchYoutubeVideos(userId: number, query: string) {
   const ids = items.map((item) => item.id!.videoId!).join(",");
   const details = ids ? await youtubeRequest<YoutubeVideoDetails>("videos", accessToken, { part: "contentDetails,snippet", id: ids }) : { items: [] as YoutubeVideoDetails[] };
   const durationById = new Map((details.items ?? []).map((item) => [item.id, parseYoutubeDuration(item.contentDetails?.duration)]));
-  return { connected: true as const, videos: items.map((item) => ({ id: item.id!.videoId!, title: item.snippet?.title ?? "Video YouTube", creator: item.snippet?.channelTitle ?? "Kênh YouTube", thumbnail: item.snippet?.thumbnails?.high?.url ?? item.snippet?.thumbnails?.medium?.url ?? "", publishedAt: item.snippet?.publishedAt ?? "", durationSeconds: durationById.get(item.id!.videoId!) ?? 0, url: `https://www.youtube.com/watch?v=${item.id!.videoId!}` })) };
+  const viewsById = new Map((details.items ?? []).map((item) => [item.id, Number(item.statistics?.viewCount ?? 0)]));
+  const likesById = new Map((details.items ?? []).map((item) => [item.id, Number(item.statistics?.likeCount ?? 0)]));
+  return { connected: true as const, videos: items.map((item) => ({ id: item.id!.videoId!, title: item.snippet?.title ?? "Video YouTube", creator: item.snippet?.channelTitle ?? "Kênh YouTube", thumbnail: item.snippet?.thumbnails?.high?.url ?? item.snippet?.thumbnails?.medium?.url ?? "", publishedAt: item.snippet?.publishedAt ?? "", durationSeconds: durationById.get(item.id!.videoId!) ?? 0, viewCount: viewsById.get(item.id!.videoId!) ?? 0, likeCount: likesById.get(item.id!.videoId!) ?? 0, url: `https://www.youtube.com/watch?v=${item.id!.videoId!}` })) };
 }
 
 export async function searchPublicYoutubeVideos(query: string) {
@@ -243,7 +248,9 @@ export async function searchPublicYoutubeVideos(query: string) {
   const ids = items.map((item) => item.id!.videoId!).join(",");
   const details = ids ? await youtubePublicRequest<YoutubeVideoDetails>("videos", { part: "contentDetails,snippet", id: ids }) : { items: [] as YoutubeVideoDetails[] };
   const durationById = new Map((details.items ?? []).map((item) => [item.id, parseYoutubeDuration(item.contentDetails?.duration)]));
-  return { connected: false as const, videos: items.map((item) => ({ id: item.id!.videoId!, title: item.snippet?.title ?? "Video YouTube", creator: item.snippet?.channelTitle ?? "Kênh YouTube", thumbnail: item.snippet?.thumbnails?.high?.url ?? item.snippet?.thumbnails?.medium?.url ?? "", publishedAt: item.snippet?.publishedAt ?? "", durationSeconds: durationById.get(item.id!.videoId!) ?? 0, url: `https://www.youtube.com/watch?v=${item.id!.videoId!}` })) };
+  const viewsById = new Map((details.items ?? []).map((item) => [item.id, Number(item.statistics?.viewCount ?? 0)]));
+  const likesById = new Map((details.items ?? []).map((item) => [item.id, Number(item.statistics?.likeCount ?? 0)]));
+  return { connected: false as const, videos: items.map((item) => ({ id: item.id!.videoId!, title: item.snippet?.title ?? "Video YouTube", creator: item.snippet?.channelTitle ?? "Kênh YouTube", thumbnail: item.snippet?.thumbnails?.high?.url ?? item.snippet?.thumbnails?.medium?.url ?? "", publishedAt: item.snippet?.publishedAt ?? "", durationSeconds: durationById.get(item.id!.videoId!) ?? 0, viewCount: viewsById.get(item.id!.videoId!) ?? 0, likeCount: likesById.get(item.id!.videoId!) ?? 0, url: `https://www.youtube.com/watch?v=${item.id!.videoId!}` })) };
 }
 
 export function getYoutubeConnectUrl() {
