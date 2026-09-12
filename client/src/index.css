@@ -96,3 +96,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid #4fa3ff; outline-
 .yt-video-card .yt-card-copy > .video-actions { display: flex; width: 100%; margin-top: 9px; }
 .yt-video-card .yt-card-menu { position: absolute; right: -4px; margin-top: 8px; }
 @media (max-width: 520px) { .yt-video-card .yt-card-copy h3 { font-size: 13px; line-height: 1.3; }.yt-video-card .yt-card-copy p, .yt-video-card .yt-card-copy > span { font-size: 10px; }.yt-video-card .yt-card-copy > .video-actions { gap: 4px; }.yt-video-card .yt-card-copy > .video-actions button { padding: 4px 6px; font-size: 9px; } }
+
+.yt-login-btn { border: 1px solid #555; border-radius: 18px; padding: 8px 14px; background: transparent; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }.yt-login-btn:hover { border-color: #ff3158; background: rgba(255,49,88,.12); }
+.yt-section-heading button:disabled { cursor: wait; opacity: .55; }
